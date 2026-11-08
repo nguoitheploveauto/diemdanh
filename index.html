@@ -64,7 +64,7 @@
       <div id="welcome" class="hint"></div>
       <label for="fullName">Họ và tên</label>
       <input id="fullName" type="text" maxlength="200" required>
-      <label class="consent" for="agree">
+      <label id="consentBox" class="consent" for="agree">
         <input id="agree" type="checkbox">
         <span>Tôi đồng ý điểm danh và đồng ý chia sẻ vị trí hiện tại của tôi (trình duyệt sẽ hỏi quyền vị trí khi gửi).</span>
       </label>
@@ -91,6 +91,8 @@
   var STEPS = ['stepLogin', 'stepStart', 'stepInfo', 'stepDone'];
   var state = { code: '', open: false, endAt: 0, sessionName: '' };
   var tick = null, poll = null;
+  // Máy tính (không phải điện thoại/máy tính bảng): không yêu cầu vị trí
+  var IS_PC = !(/Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
 
   if (!APPS_SCRIPT_URL) $('cfgWarn').classList.remove('hidden');
 
@@ -164,6 +166,7 @@
     $('agree').checked = false;
     $('sendBtn').disabled = false;
     setMsg($('infoMsg'), '', '');
+    $('consentBox').classList.toggle('hidden', IS_PC);
     show('stepInfo');
   }
 
@@ -239,14 +242,15 @@
     if (!state.open) { setMsg($('infoMsg'), 'Đợt điểm danh đã kết thúc.', 'err'); return; }
     var fullName = $('fullName').value.trim();
     if (!fullName) { setMsg($('infoMsg'), 'Vui lòng nhập họ tên.', 'err'); return; }
-    if (!$('agree').checked) { setMsg($('infoMsg'), 'Bạn cần tích đồng ý điểm danh và chia sẻ vị trí.', 'err'); return; }
+    if (!IS_PC && !$('agree').checked) { setMsg($('infoMsg'), 'Bạn cần tích đồng ý điểm danh và chia sẻ vị trí.', 'err'); return; }
     $('sendBtn').disabled = true;
-    setMsg($('infoMsg'), 'Đang lấy vị trí... hãy chọn "Cho phép" khi trình duyệt hỏi.', '');
-    getPosition().then(function (p) {
+    setMsg($('infoMsg'), IS_PC ? 'Đang gửi...' : 'Đang lấy vị trí... hãy chọn "Cho phép" khi trình duyệt hỏi.', '');
+    (IS_PC ? Promise.resolve(null) : getPosition()).then(function (p) {
       setMsg($('infoMsg'), 'Đang gửi...', '');
       return api({
-        action: 'submit', code: state.code, fullName: fullName, consent: true,
-        lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy
+        action: 'submit', code: state.code, fullName: fullName, consent: !IS_PC,
+        device: IS_PC ? 'pc' : 'mobile',
+        lat: p ? p.coords.latitude : null, lng: p ? p.coords.longitude : null, acc: p ? p.coords.accuracy : null
       });
     }).then(function (res) {
       if (res && res.ok) {
