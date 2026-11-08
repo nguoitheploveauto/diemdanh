@@ -12,17 +12,17 @@
   h1 { font-size:22px; margin:8px 0 12px; }
   .card { background:#fff; border-radius:12px; padding:18px; box-shadow:0 1px 3px rgba(0,0,0,.12); }
   label { display:block; font-weight:600; margin:14px 0 6px; font-size:14px; }
-  input, textarea { width:100%; padding:11px 12px; font-size:16px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; }
-  input:focus, textarea:focus { outline:2px solid var(--c); border-color:var(--c); }
+  input[type=text], textarea { width:100%; padding:11px 12px; font-size:16px; border:1px solid #cbd5e1; border-radius:8px; font-family:inherit; }
+  input[type=text]:focus, textarea:focus { outline:2px solid var(--c); border-color:var(--c); }
   textarea { min-height:90px; resize:vertical; }
   button { width:100%; margin-top:16px; padding:12px; font-size:16px; font-weight:600; color:#fff; background:var(--c); border:0; border-radius:8px; cursor:pointer; }
   button:disabled { background:#94a3b8; cursor:not-allowed; }
   button.secondary { background:#fff; color:var(--c); border:1px solid var(--c); margin-top:8px; }
-  button.secondary:disabled { color:#94a3b8; border-color:#cbd5e1; background:#fff; }
   .msg { margin-top:12px; font-size:14px; min-height:20px; }
   .err { color:var(--err); } .ok { color:var(--ok); }
   .hint { font-size:13px; color:#475569; margin-top:6px; }
-  .loc { margin-top:14px; padding:10px 12px; border-radius:8px; background:#f8fafc; border:1px solid #e2e8f0; font-size:14px; }
+  .consent { display:flex; gap:10px; align-items:flex-start; margin-top:16px; padding:12px; border:1px solid #e2e8f0; background:#f8fafc; border-radius:8px; font-size:14px; line-height:1.4; }
+  .consent input { width:20px; height:20px; margin:2px 0 0; flex:none; }
   .hidden { display:none; }
   .warn { background:#fef3c7; border:1px solid #f59e0b; padding:10px; border-radius:8px; font-size:14px; margin-bottom:12px; }
   .banner { padding:10px 12px; border-radius:8px; font-size:14px; margin-bottom:12px; background:#dbeafe; color:#1e3a8a; }
@@ -37,31 +37,38 @@
   <div id="cfgWarn" class="warn hidden">Chưa cấu hình địa chỉ máy chủ. Mở file này bằng trình soạn thảo và điền APPS_SCRIPT_URL ở đầu phần script.</div>
   <div id="banner" class="banner hidden" role="status"></div>
 
-  <!-- Bước 1: đăng nhập bằng mã -->
+  <!-- Bước 1: nhập SỐ CNN -->
   <section id="stepLogin" class="card">
     <form id="loginForm" autocomplete="off">
-      <label for="code">Mã code được cấp</label>
-      <input id="code" type="text" inputmode="text" autocapitalize="characters" spellcheck="false" maxlength="64" required>
-      <button id="loginBtn" type="submit" disabled>Đăng nhập</button>
+      <label for="code">SỐ CNN</label>
+      <input id="code" type="text" inputmode="numeric" autocapitalize="characters" spellcheck="false" maxlength="64" required>
+      <button id="loginBtn" type="submit">Đăng nhập</button>
       <div id="loginMsg" class="msg" role="status"></div>
     </form>
   </section>
 
-  <!-- Bước 2: cung cấp thông tin -->
+  <!-- Bước 1b: người mở đợt nhập NỘI DUNG ĐIỂM DANH -->
+  <section id="stepStart" class="card hidden">
+    <form id="startForm" autocomplete="off">
+      <div class="hint">Chưa có đợt điểm danh nào đang mở. Nhập nội dung để bắt đầu đợt mới (kéo dài 30 phút).</div>
+      <label for="content">NỘI DUNG ĐIỂM DANH</label>
+      <input id="content" type="text" maxlength="200" required>
+      <button id="startBtn" type="submit">Bắt đầu đợt điểm danh</button>
+      <div id="startMsg" class="msg" role="status"></div>
+    </form>
+  </section>
+
+  <!-- Bước 2: nhập họ tên và đồng ý -->
   <section id="stepInfo" class="card hidden">
     <form id="infoForm" autocomplete="off">
       <div id="welcome" class="hint"></div>
       <label for="fullName">Họ và tên</label>
       <input id="fullName" type="text" maxlength="200" required>
-      <label for="note">Ghi chú</label>
-      <textarea id="note" maxlength="1000" placeholder="Nội dung cần báo (không bắt buộc)"></textarea>
-
-      <div class="loc">
-        <strong>Vị trí hiện tại (bắt buộc)</strong>
-        <div id="locStatus" class="hint">Chưa lấy vị trí.</div>
-      </div>
-      <button id="locBtn" type="button" class="secondary">Lấy vị trí hiện tại</button>
-      <button id="sendBtn" type="submit" disabled>Gửi điểm danh</button>
+      <label class="consent" for="agree">
+        <input id="agree" type="checkbox">
+        <span>Tôi đồng ý điểm danh và đồng ý chia sẻ vị trí hiện tại của tôi (trình duyệt sẽ hỏi quyền vị trí khi gửi).</span>
+      </label>
+      <button id="sendBtn" type="submit">Điểm danh</button>
       <div id="infoMsg" class="msg" role="status"></div>
     </form>
   </section>
@@ -77,17 +84,18 @@
 <script>
 (function () {
   'use strict';
-  // >>> ĐIỀN địa chỉ ứng dụng web Apps Script (kết thúc bằng /exec) <<<
+  // >>> Địa chỉ ứng dụng web Apps Script (kết thúc bằng /exec) <<<
   var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzZM4PO45DtIJBcrNvgs8tjGwg84WpTmsPfQJ7OwmqnIG9QrgN4LwAROdXffNYhF0YxjQ/exec';
 
   var $ = function (id) { return document.getElementById(id); };
-  var state = { code: '', pos: null, open: false, endAt: 0, sessionName: '' };
+  var STEPS = ['stepLogin', 'stepStart', 'stepInfo', 'stepDone'];
+  var state = { code: '', open: false, endAt: 0, sessionName: '' };
   var tick = null, poll = null;
 
   if (!APPS_SCRIPT_URL) $('cfgWarn').classList.remove('hidden');
 
   function show(id) {
-    ['stepLogin', 'stepInfo', 'stepDone'].forEach(function (s) { $(s).classList.add('hidden'); });
+    STEPS.forEach(function (s) { $(s).classList.add('hidden'); });
     $(id).classList.remove('hidden');
   }
   function setMsg(el, text, cls) { el.textContent = text; el.className = 'msg ' + (cls || ''); }
@@ -125,21 +133,18 @@
   function setOpen(name, remainingSec) {
     state.open = true; state.sessionName = name;
     state.endAt = Date.now() + remainingSec * 1000;   // dùng giờ máy chủ, không phụ thuộc đồng hồ máy người dùng
-    $('loginBtn').disabled = false;
     renderBanner();
     clearInterval(tick); tick = setInterval(renderBanner, 1000);
     clearInterval(poll); poll = null;
   }
   function setClosed() {
-    var wasInfo = !$('stepInfo').classList.contains('hidden');
-    state.open = false; state.pos = null;
+    var onInfo = !$('stepInfo').classList.contains('hidden');
+    state.open = false;
     clearInterval(tick); tick = null;
-    $('loginBtn').disabled = true; $('sendBtn').disabled = true;
+    $('sendBtn').disabled = true;
     renderBanner();
-    if (wasInfo) {
-      setMsg($('infoMsg'), 'Đợt điểm danh đã kết thúc, dữ liệu chưa gửi sẽ không được ghi nhận.', 'err');
-    }
-    clearInterval(poll); poll = setInterval(refreshStatus, 60000);   // tự mở lại khi có đợt mới
+    if (onInfo) setMsg($('infoMsg'), 'Đợt điểm danh đã kết thúc, dữ liệu chưa gửi sẽ không được ghi nhận.', 'err');
+    clearInterval(poll); poll = setInterval(refreshStatus, 60000);   // tự cập nhật khi có đợt mới
   }
   function refreshStatus() {
     api({ action: 'status' }).then(function (res) {
@@ -152,71 +157,97 @@
   }
   if (APPS_SCRIPT_URL) refreshStatus();
 
-  // --- Bước 1: đăng nhập ---
+  // Chuyển sang màn nhập họ tên
+  function goInfo(res) {
+    $('fullName').value = res.name || '';
+    $('welcome').textContent = res.name ? 'Xin chào ' + res.name + (res.unit ? ' (' + res.unit + ')' : '') + '.' : 'Đăng nhập thành công.';
+    $('agree').checked = false;
+    $('sendBtn').disabled = false;
+    setMsg($('infoMsg'), '', '');
+    show('stepInfo');
+  }
+
+  // --- Bước 1: đăng nhập bằng SỐ CNN ---
   $('loginForm').addEventListener('submit', function (e) {
     e.preventDefault();
     var code = $('code').value.trim();
-    if (!code || !state.open) return;
+    if (!code) return;
     $('loginBtn').disabled = true;
     setMsg($('loginMsg'), 'Đang kiểm tra...', '');
     api({ action: 'login', code: code }).then(function (res) {
       if (res && res.ok) {
         state.code = code;
-        $('fullName').value = res.name || '';
-        $('welcome').textContent = res.name ? 'Xin chào ' + res.name + (res.unit ? ' (' + res.unit + ')' : '') + '.' : 'Đăng nhập thành công.';
         setMsg($('loginMsg'), '', '');
-        setOpen(res.session, res.remainingSec);
-        show('stepInfo');
+        if (res.running) {
+          setOpen(res.session, res.remainingSec);
+          goInfo(res);
+        } else if (res.admin) {              // người mở đợt: chưa có đợt nào
+          $('content').value = '';
+          setMsg($('startMsg'), '', '');
+          show('stepStart');
+        } else {
+          setClosed();
+          setMsg($('loginMsg'), 'Hiện không có đợt điểm danh nào đang mở.', 'err');
+        }
       } else if (res && res.closed) {
         setClosed();
         setMsg($('loginMsg'), res.error, 'err');
       } else {
-        setMsg($('loginMsg'), (res && res.error) || 'Mã không hợp lệ.', 'err');
+        setMsg($('loginMsg'), (res && res.error) || 'Số CNN không hợp lệ.', 'err');
       }
     }).catch(function () {
       setMsg($('loginMsg'), 'Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.', 'err');
-    }).then(function () { $('loginBtn').disabled = !state.open; });
+    }).then(function () { $('loginBtn').disabled = false; });
   });
 
-  // --- Bước 2: vị trí ---
-  function getLocation() {
-    if (!navigator.geolocation) {
-      $('locStatus').textContent = 'Thiết bị hoặc trình duyệt không hỗ trợ định vị.';
-      return;
-    }
-    $('locBtn').disabled = true;
-    $('sendBtn').disabled = true;
-    state.pos = null;
-    $('locStatus').textContent = 'Đang lấy vị trí... hãy chọn "Cho phép" khi trình duyệt hỏi.';
-    navigator.geolocation.getCurrentPosition(function (p) {
-      state.pos = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy };
-      $('locStatus').textContent = 'Đã lấy vị trí (sai số khoảng ' + Math.round(p.coords.accuracy) + ' m).';
-      $('sendBtn').disabled = !state.open;
-      $('locBtn').disabled = false;
-      $('locBtn').textContent = 'Lấy lại vị trí';
-    }, function (err) {
-      var m = {
-        1: 'Bạn đã từ chối chia sẻ vị trí. Hãy cho phép vị trí cho trang này trong cài đặt trình duyệt rồi bấm "Lấy vị trí hiện tại".',
-        2: 'Không xác định được vị trí. Hãy bật GPS/định vị rồi thử lại.',
-        3: 'Hết thời gian chờ định vị. Hãy thử lại.'
-      };
-      $('locStatus').textContent = m[err.code] || 'Không lấy được vị trí.';
-      $('locBtn').disabled = false;
-    }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+  // --- Bước 1b: người mở đợt nhập NỘI DUNG ĐIỂM DANH ---
+  $('startForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var content = $('content').value.trim();
+    if (!content) { setMsg($('startMsg'), 'Vui lòng nhập nội dung điểm danh.', 'err'); return; }
+    $('startBtn').disabled = true;
+    setMsg($('startMsg'), 'Đang mở đợt...', '');
+    api({ action: 'start', code: state.code, content: content }).then(function (res) {
+      if (res && res.ok) {
+        setOpen(res.session, res.remainingSec);
+        goInfo(res);
+      } else {
+        setMsg($('startMsg'), (res && res.error) || 'Không mở được đợt.', 'err');
+      }
+    }).catch(function () {
+      setMsg($('startMsg'), 'Không kết nối được máy chủ. Hãy thử lại.', 'err');
+    }).then(function () { $('startBtn').disabled = false; });
+  });
+
+  // --- Bước 2: họ tên + đồng ý, vị trí được lấy khi bấm Điểm danh ---
+  function getPosition() {
+    return new Promise(function (resolve, reject) {
+      if (!navigator.geolocation) { reject({ code: 0 }); return; }
+      navigator.geolocation.getCurrentPosition(resolve, reject,
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+    });
   }
-  $('locBtn').addEventListener('click', getLocation);
+  var GEO_ERR = {
+    0: 'Thiết bị hoặc trình duyệt không hỗ trợ định vị.',
+    1: 'Bạn chưa cho phép chia sẻ vị trí nên chưa điểm danh được. Hãy cho phép vị trí cho trang này trong cài đặt trình duyệt rồi bấm Điểm danh lại.',
+    2: 'Không xác định được vị trí. Hãy bật GPS/định vị rồi bấm Điểm danh lại.',
+    3: 'Hết thời gian chờ định vị. Hãy bấm Điểm danh lại.'
+  };
 
   $('infoForm').addEventListener('submit', function (e) {
     e.preventDefault();
     if (!state.open) { setMsg($('infoMsg'), 'Đợt điểm danh đã kết thúc.', 'err'); return; }
-    if (!state.pos) { setMsg($('infoMsg'), 'Cần lấy vị trí trước khi gửi.', 'err'); return; }
     var fullName = $('fullName').value.trim();
     if (!fullName) { setMsg($('infoMsg'), 'Vui lòng nhập họ tên.', 'err'); return; }
+    if (!$('agree').checked) { setMsg($('infoMsg'), 'Bạn cần tích đồng ý điểm danh và chia sẻ vị trí.', 'err'); return; }
     $('sendBtn').disabled = true;
-    setMsg($('infoMsg'), 'Đang gửi...', '');
-    api({
-      action: 'submit', code: state.code, fullName: fullName, note: $('note').value.trim(),
-      lat: state.pos.lat, lng: state.pos.lng, acc: state.pos.acc
+    setMsg($('infoMsg'), 'Đang lấy vị trí... hãy chọn "Cho phép" khi trình duyệt hỏi.', '');
+    getPosition().then(function (p) {
+      setMsg($('infoMsg'), 'Đang gửi...', '');
+      return api({
+        action: 'submit', code: state.code, fullName: fullName, consent: true,
+        lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy
+      });
     }).then(function (res) {
       if (res && res.ok) {
         $('doneMsg').textContent = 'Điểm danh thành công lúc ' + res.time + '.';
@@ -228,17 +259,20 @@
         setMsg($('infoMsg'), (res && res.error) || 'Gửi không thành công.', 'err');
         $('sendBtn').disabled = !state.open;
       }
-    }).catch(function () {
-      setMsg($('infoMsg'), 'Không kết nối được máy chủ. Dữ liệu chưa được gửi, hãy thử lại.', 'err');
+    }).catch(function (err) {
+      if (err && typeof err.code === 'number' && GEO_ERR[err.code]) {
+        setMsg($('infoMsg'), GEO_ERR[err.code], 'err');
+      } else {
+        setMsg($('infoMsg'), 'Không kết nối được máy chủ. Dữ liệu chưa được gửi, hãy thử lại.', 'err');
+      }
       $('sendBtn').disabled = !state.open;
     });
   });
 
   $('againBtn').addEventListener('click', function () {
-    state.code = ''; state.pos = null;
-    $('code').value = ''; $('note').value = ''; $('fullName').value = '';
-    $('locStatus').textContent = 'Chưa lấy vị trí.'; $('locBtn').textContent = 'Lấy vị trí hiện tại';
-    setMsg($('infoMsg'), '', ''); $('sendBtn').disabled = true;
+    state.code = '';
+    $('code').value = ''; $('fullName').value = ''; $('agree').checked = false;
+    setMsg($('infoMsg'), '', ''); setMsg($('loginMsg'), '', '');
     show('stepLogin');
     refreshStatus();
   });
