@@ -63,6 +63,17 @@
     </form>
   </section>
 
+  <!-- Bước 1a: người mở đợt nhập thêm mã xác nhận bí mật -->
+  <section id="stepSecret" class="card hidden">
+    <form id="secretForm" autocomplete="off">
+      <div class="hint">Cần xác nhận thêm để tiếp tục.</div>
+      <label for="secret">MÃ XÁC NHẬN BÍ MẬT</label>
+      <input id="secret" type="password" autocomplete="off" spellcheck="false" maxlength="128" required>
+      <button id="secretBtn" type="submit">Xác nhận</button>
+      <div id="secretMsg" class="msg" role="status"></div>
+    </form>
+  </section>
+
   <!-- Bước 1b: người mở đợt nhập NỘI DUNG ĐIỂM DANH -->
   <section id="stepStart" class="card hidden">
     <form id="startForm" autocomplete="off">
@@ -105,8 +116,8 @@
   var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzZM4PO45DtIJBcrNvgs8tjGwg84WpTmsPfQJ7OwmqnIG9QrgN4LwAROdXffNYhF0YxjQ/exec';
 
   var $ = function (id) { return document.getElementById(id); };
-  var STEPS = ['stepLogin', 'stepStart', 'stepInfo', 'stepDone'];
-  var state = { code: '', open: false, endAt: 0, sessionName: '' };
+  var STEPS = ['stepLogin', 'stepSecret', 'stepStart', 'stepInfo', 'stepDone'];
+  var state = { code: '', secret: '', open: false, endAt: 0, sessionName: '' };
   var tick = null, poll = null;
   // Máy tính (không phải điện thoại/máy tính bảng): không yêu cầu vị trí
   var IS_PC = !(/Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
@@ -187,7 +198,37 @@
     show('stepInfo');
   }
 
-  // --- Bước 1: đăng nhập bằng SỐ CNN ---
+  // --- Bước 1: đăng nhập bằng SỐ CNN (người mở đợt cần thêm mã xác nhận bí mật) ---
+  function afterLogin(res, code, secret, msgEl) {
+    if (res && res.ok) {
+      if (res.needSecret) {
+        state.code = code; state.secret = '';
+        $('secret').value = ''; setMsg($('secretMsg'), '', '');
+        show('stepSecret'); $('secret').focus();
+        return;
+      }
+      state.code = code; state.secret = secret || '';
+      setMsg($('loginMsg'), '', ''); setMsg($('secretMsg'), '', '');
+      if (res.running) {
+        setOpen(res.session, res.remainingSec);
+        goInfo(res);
+      } else if (res.admin) {              // người mở đợt: chưa có đợt nào
+        $('content').value = '';
+        setMsg($('startMsg'), '', '');
+        show('stepStart');
+      } else {
+        show('stepLogin');
+        setClosed();
+        setMsg($('loginMsg'), 'Hiện không có đợt điểm danh nào đang mở.', 'err');
+      }
+    } else if (res && res.closed) {
+      show('stepLogin');
+      setClosed();
+      setMsg($('loginMsg'), res.error, 'err');
+    } else {
+      setMsg(msgEl, (res && res.error) || 'Thông tin không hợp lệ.', 'err');
+    }
+  }
   $('loginForm').addEventListener('submit', function (e) {
     e.preventDefault();
     var code = $('code').value.trim();
@@ -195,29 +236,22 @@
     $('loginBtn').disabled = true;
     setMsg($('loginMsg'), 'Đang kiểm tra...', '');
     api({ action: 'login', code: code }).then(function (res) {
-      if (res && res.ok) {
-        state.code = code;
-        setMsg($('loginMsg'), '', '');
-        if (res.running) {
-          setOpen(res.session, res.remainingSec);
-          goInfo(res);
-        } else if (res.admin) {              // người mở đợt: chưa có đợt nào
-          $('content').value = '';
-          setMsg($('startMsg'), '', '');
-          show('stepStart');
-        } else {
-          setClosed();
-          setMsg($('loginMsg'), 'Hiện không có đợt điểm danh nào đang mở.', 'err');
-        }
-      } else if (res && res.closed) {
-        setClosed();
-        setMsg($('loginMsg'), res.error, 'err');
-      } else {
-        setMsg($('loginMsg'), (res && res.error) || 'Số CNN không hợp lệ.', 'err');
-      }
+      afterLogin(res, code, '', $('loginMsg'));
     }).catch(function () {
       setMsg($('loginMsg'), 'Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.', 'err');
     }).then(function () { $('loginBtn').disabled = false; });
+  });
+  $('secretForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    var secret = $('secret').value;
+    if (!secret.trim()) return;
+    $('secretBtn').disabled = true;
+    setMsg($('secretMsg'), 'Đang kiểm tra...', '');
+    api({ action: 'login', code: state.code, secret: secret }).then(function (res) {
+      afterLogin(res, state.code, secret, $('secretMsg'));
+    }).catch(function () {
+      setMsg($('secretMsg'), 'Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.', 'err');
+    }).then(function () { $('secretBtn').disabled = false; });
   });
 
   // --- Bước 1b: người mở đợt nhập NỘI DUNG ĐIỂM DANH ---
@@ -227,7 +261,7 @@
     if (!content) { setMsg($('startMsg'), 'Vui lòng nhập nội dung điểm danh.', 'err'); return; }
     $('startBtn').disabled = true;
     setMsg($('startMsg'), 'Đang mở đợt...', '');
-    api({ action: 'start', code: state.code, content: content }).then(function (res) {
+    api({ action: 'start', code: state.code, secret: state.secret, content: content }).then(function (res) {
       if (res && res.ok) {
         setOpen(res.session, res.remainingSec);
         goInfo(res);
@@ -265,7 +299,7 @@
     (IS_PC ? Promise.resolve(null) : getPosition()).then(function (p) {
       setMsg($('infoMsg'), 'Đang gửi...', '');
       return api({
-        action: 'submit', code: state.code, fullName: fullName, consent: !IS_PC,
+        action: 'submit', code: state.code, fullName: fullName, consent: !IS_PC, secret: state.secret,
         device: IS_PC ? 'pc' : 'mobile',
         lat: p ? p.coords.latitude : null, lng: p ? p.coords.longitude : null, acc: p ? p.coords.accuracy : null
       });
@@ -291,7 +325,7 @@
   });
 
   $('againBtn').addEventListener('click', function () {
-    state.code = '';
+    state.code = ''; state.secret = ''; $('secret').value = '';
     $('code').value = ''; $('fullName').value = ''; $('agree').checked = false;
     setMsg($('infoMsg'), '', ''); setMsg($('loginMsg'), '', '');
     show('stepLogin');
